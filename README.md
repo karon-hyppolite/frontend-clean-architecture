@@ -1,27 +1,41 @@
-> Other languages: [Russian](https://github.com/bespoyasov/frontend-clean-architecture/blob/master/docs/ru.md).
-
 # Frontend Clean Architecture
 
-A React + TypeScript example app built using the clean architecture in a functional(-ish) way.
+A React + TypeScript example app that demonstrates Clean Architecture in a functional-style frontend codebase.
 
-- [Working app](https://bespoyasov.ru/showcase/frontend-clean-architecture/en/)
-- [Huge post about it](https://dev.to/bespoyasov/clean-architecture-on-frontend-4311)
+## Purpose
+
+This project shows one way to separate a frontend application into domain, application, and infrastructure concerns while keeping React focused on UI and adapters.
+
+The repository is useful as a small reference for:
+
+- modeling domain entities and rules outside components;
+- isolating use cases from view logic;
+- wiring services through hooks and adapters;
+- discussing tradeoffs in a pragmatic, non-purist implementation.
+
+## Project Structure
+
+- `src/domain`: business entities and domain rules.
+- `src/application`: use cases and application-level orchestration.
+- `src/services`: infrastructure and integration details.
+- `src/ui`: React components and view-facing logic.
+- `src/shared-kernel.d.ts`: shared global types used across modules.
 
 ## Things to Consider
 
-There are a few compromises and simplifications in the code that are worth to be mentioned.
+This repository intentionally contains a few compromises and simplifications so the example stays small and focused.
 
 ### Shared Kernel
 
-Shared Kernel is the code and data on which any modules can depend, but _only if this dependency would not increase coupling_. More details about the limitations and application are well described in the article ["DDD, Hexagonal, Onion, Clean, CQRS, ... How I put it all together"](https://herbertograca.com/2017/11/16/explicit-architecture-01-ddd-hexagonal-onion-clean-cqrs-how-i-put-it-all-together/).
+The shared kernel contains code and data that any module may use, but only when that dependency does not create unnecessary coupling.
 
-In this application, the shared kernel includes global type annotations that can be accessed anywhere in the app and by any module. Such types are collected in [`shared-kernel.d.ts`](https://github.com/bespoyasov/frontend-clean-architecture/blob/master/src/shared-kernel.d.ts).
+In this project, the shared kernel is mostly global type definitions collected in `src/shared-kernel.d.ts`.
 
 ### Dependency in the Domain
 
-The [`createOrder`](https://github.com/bespoyasov/frontend-clean-architecture/blob/master/src/domain/order.ts#L15) function uses the library-like function `currentDatetime` to specify the order creation date. This is not quite correct, because the domain should not depend on anything.
+The `createOrder` function in `src/domain/order.ts` uses `currentDatetime` to set the order creation time. Strictly speaking, that makes the domain depend on an external helper, which is not ideal.
 
-Ideally, the implementation of the `Order` type should accept all the necessary data, including the date, from outside. The creation of this entity would be in the application layer in `orderProducts`:
+A cleaner approach would create the date outside the domain entity and pass it in explicitly:
 
 ```ts
 async function orderProducts(user: User, { products }: Cart) {
@@ -34,9 +48,9 @@ async function orderProducts(user: User, { products }: Cart) {
 
 ### Use Case Testability
 
-The order creation function [`orderProduct`](https://github.com/bespoyasov/frontend-clean-architecture/blob/master/src/application/orderProducts.ts#L24) itself is framework-independent right now and can't be used and tested in isolation from React. The hook wrapper though is only used to provide the use case to components and to inject services into the use case itself.
+The `orderProducts` logic in `src/application/orderProducts.ts` is currently wrapped in a React-oriented shape, which makes isolated testing less direct than it could be.
 
-In a canonical implementation, the function of the use case would be extracted outside the hook, and the services would be passed to the use case via a last argument or a DI:
+In a stricter setup, the use case would be a standalone function and dependencies would be passed in explicitly:
 
 ```ts
 type Dependencies = {
@@ -56,7 +70,7 @@ async function orderProducts(
 }
 ```
 
-Hook would then become an adapter:
+The hook would then act only as an adapter:
 
 ```ts
 function useOrderProducts() {
@@ -73,11 +87,11 @@ function useOrderProducts() {
 }
 ```
 
-In the sources, I thought it was unnecessary, as it would distract from the essence.
+That extra structure was intentionally skipped here to keep the example centered on the main architectural ideas.
 
-### Crooked DI
+### Manual Dependency Injection
 
-In the [application layer](https://github.com/bespoyasov/frontend-clean-architecture/blob/master/src/application/orderProducts.ts) we inject services by hand:
+In the application layer, services are injected by hand:
 
 ```ts
 export function useAuthenticate() {
@@ -88,6 +102,6 @@ export function useAuthenticate() {
 }
 ```
 
-In a good way, this should be automated and done through the dependency injection. But in the case of React and hooks, we can use them as a “container” that returns an implementation of the specified interface.
+In a larger system, this could be formalized through dependency injection. In this codebase, React hooks effectively act as a lightweight container that provides implementations for the required interfaces.
 
-In this particular application, it didn't make much sense to set up the DI because it would distract from the main topic.
+That choice keeps the example easier to read, even if it is less canonical than a full DI setup.
